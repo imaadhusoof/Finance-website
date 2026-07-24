@@ -1,0 +1,46 @@
+# systemd unit for the FastAPI backend.
+# Install to /etc/systemd/system/options-pricer.service
+
+[Unit]
+Description=Options Pricer FastAPI backend
+Documentation=https://github.com/imaadhusoof/Finance-website
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/options-pricer
+
+# The cache must live outside the app directory so a redeploy never wipes it.
+Environment="OPTIONS_PRICER_CACHE_DIR=/var/lib/options-pricer/cache"
+# Optional overrides (TTLs etc). The leading '-' means "ignore if absent".
+EnvironmentFile=-/etc/options-pricer.env
+
+# Bind to loopback only — nginx is the sole public entry point.
+# Drop to --workers 1 if you see memory pressure on a 1 GB instance.
+ExecStart=/opt/options-pricer/.venv/bin/uvicorn backend.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 2 \
+    --proxy-headers \
+    --forwarded-allow-ips 127.0.0.1
+
+Restart=always
+RestartSec=3
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectControlGroups=true
+ProtectKernelTunables=true
+ReadWritePaths=/var/lib/options-pricer
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=options-pricer
+
+[Install]
+WantedBy=multi-user.target
