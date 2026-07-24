@@ -1,0 +1,32 @@
+# One-shot cache refresh, driven by cache-refresh.timer.
+# Install to /etc/systemd/system/cache-refresh.service
+
+[Unit]
+Description=Refresh Options Pricer market data cache
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/options-pricer
+
+Environment="OPTIONS_PRICER_CACHE_DIR=/var/lib/options-pricer/cache"
+EnvironmentFile=-/etc/options-pricer.env
+
+# --force ignores the freshness window so the nightly run always pulls the
+# day's close rather than short-circuiting on a still-valid TTL.
+ExecStart=/opt/options-pricer/.venv/bin/python -m backend.data.populate_cache --force
+
+# A full 18-ticker refresh takes ~1 minute; fail loudly if it wedges.
+TimeoutStartSec=900
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/var/lib/options-pricer
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cache-refresh

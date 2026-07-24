@@ -1,0 +1,20 @@
+# Daily trigger for cache-refresh.service.
+# Install to /etc/systemd/system/cache-refresh.timer
+
+[Unit]
+Description=Daily Options Pricer market data cache refresh
+
+[Timer]
+# 22:30 UTC is comfortably after the US close in both EST (21:00 UTC) and
+# EDT (20:00 UTC), so the day's closing prices are settled by the time we pull.
+# Explicit UTC keeps this correct regardless of the server's local timezone.
+OnCalendar=*-*-* 22:30:00 UTC
+
+# If the instance was off at the scheduled time, run once on next boot.
+Persistent=true
+
+# Jitter so we are not hitting the upstream source on the same second daily.
+RandomizedDelaySec=600
+
+[Install]
+WantedBy=timers.target

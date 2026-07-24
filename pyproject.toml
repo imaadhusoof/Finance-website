@@ -1,0 +1,18 @@
+[project]
+name = "options-pricer-backend"
+version = "0.1.0"
+description = "Raw market-data layer (prices + sector metadata) for the portfolio recommender. No financial calculations."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "yfinance>=0.2.40",
+    "pandas>=2.0",
+    "numpy>=1.24",
+    "pyarrow>=15.0",
+]
+
+# Treat this as an application, not an installable library, so uv doesn't
+# require a build backend / package layout.
+[tool.uv]
+package = false
