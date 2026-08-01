@@ -1,34 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&display=swap');
+
 /* =========================================================================
    Design tokens
-   Light-only by design: white surfaces, a single blue accent, quiet ink.
-   The blue (#2a78d6) is validated for contrast against the white chart
-   surface, so it is safe as both a UI accent and a data-mark color.
+   Dark theme matched to imaadhusoof.com: deep background, soft-blue accent,
+   Montserrat. Surfaces are translucent so the constellation canvas behind the
+   app glows through the gutters. Chart colors are stepped for the dark surface.
    ========================================================================= */
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
-  /* Blue ramp */
-  --accent: #2a78d6;
-  --accent-strong: #256abf;
-  --accent-deep: #184f95;
-  --accent-soft: #cde2fb;
-  --accent-wash: rgba(42, 120, 214, 0.08);
-  --accent-wash-strong: rgba(42, 120, 214, 0.14);
+  /* Blue ramp (accent #6f9be0, from the portfolio) */
+  --accent: #6f9be0;
+  --accent-strong: #8db3ec;
+  --accent-deep: #5580c4;
+  --accent-soft: rgba(111, 155, 224, 0.35);
+  --accent-wash: rgba(111, 155, 224, 0.12);
+  --accent-wash-strong: rgba(111, 155, 224, 0.22);
 
-  /* Surfaces */
-  --surface: #ffffff;
-  --surface-sunken: #f2f6fb;
-  --page: #f6f9fd;
+  /* Surfaces (sit above the constellation) */
+  --surface: rgba(26, 29, 34, 0.88);
+  --surface-solid: #1a1d22;
+  --surface-sunken: rgba(255, 255, 255, 0.05);
+  --page: #14161a;
 
   /* Ink */
-  --ink: #0b0b0b;
-  --ink-2: #52514e;
-  --muted: #898781;
+  --ink: #e7e7e7;
+  --ink-2: #a6aab1;
+  --muted: #7c828d;
 
   /* Lines */
-  --grid: #e8edf3;
-  --border: rgba(11, 11, 11, 0.08);
-  --border-strong: rgba(11, 11, 11, 0.14);
+  --grid: rgba(255, 255, 255, 0.09);
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.20);
 
   /* Shape */
   --radius-lg: 18px;
@@ -36,10 +39,10 @@
   --radius-sm: 10px;
   --radius-pill: 999px;
 
-  /* Elevation — cool-tinted so shadows sit in the blue family */
-  --shadow-sm: 0 1px 2px rgba(16, 42, 80, 0.06);
-  --shadow: 0 4px 16px rgba(16, 42, 80, 0.07);
-  --shadow-lg: 0 14px 36px rgba(16, 42, 80, 0.12);
+  /* Elevation */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6);
 
   /* Motion */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
@@ -48,7 +51,7 @@
   --dur: 260ms;
   --dur-slow: 420ms;
 
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 /* =========================================================================
@@ -162,6 +165,19 @@ p {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 1;
+}
+
+/* Constellation canvas sits behind all app content (see Constellation.tsx). */
+.constellation {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  pointer-events: none;
+  display: block;
 }
 
 .shell {
@@ -176,8 +192,9 @@ p {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(255, 255, 255, 0.82);
-  backdrop-filter: saturate(180%) blur(12px);
+  background: rgba(15, 16, 19, 0.72);
+  backdrop-filter: saturate(140%) blur(12px);
+  -webkit-backdrop-filter: saturate(140%) blur(12px);
   border-bottom: 1px solid var(--border);
 }
 
@@ -235,7 +252,7 @@ p {
 
 .nav-btn.active {
   background: var(--accent);
-  color: #fff;
+  color: #0f1216;
   box-shadow: var(--shadow-sm);
 }
 
@@ -488,13 +505,13 @@ p {
 
 .chart-focus-dot {
   fill: var(--accent);
-  stroke: var(--surface);
+  stroke: var(--surface-solid);
   stroke-width: 2;
 }
 
 .chart-end-dot {
   fill: var(--accent);
-  stroke: var(--surface);
+  stroke: var(--surface-solid);
   stroke-width: 2;
 }
 
@@ -502,7 +519,7 @@ p {
 .tooltip {
   position: absolute;
   pointer-events: none;
-  background: var(--surface);
+  background: var(--surface-solid);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   box-shadow: var(--shadow-lg);
@@ -729,7 +746,7 @@ p {
   height: 20px;
   border-radius: 50%;
   background: var(--accent);
-  border: 3px solid var(--surface);
+  border: 3px solid var(--surface-solid);
   box-shadow: var(--shadow);
   cursor: pointer;
   transition: transform var(--dur-fast) var(--ease);
@@ -744,7 +761,7 @@ p {
   height: 20px;
   border-radius: 50%;
   background: var(--accent);
-  border: 3px solid var(--surface);
+  border: 3px solid var(--surface-solid);
   box-shadow: var(--shadow);
   cursor: pointer;
 }
@@ -788,7 +805,7 @@ p {
   font-size: 14.5px;
   font-weight: 600;
   background: var(--accent);
-  color: #fff;
+  color: #0f1216;
   box-shadow: var(--shadow-sm);
   transition: background var(--dur-fast) var(--ease-soft),
     transform var(--dur-fast) var(--ease), box-shadow var(--dur) var(--ease);
@@ -861,7 +878,7 @@ p {
 .notice-title {
   font-size: 15px;
   font-weight: 640;
-  color: var(--accent-deep);
+  color: var(--accent-strong);
   margin-bottom: 8px;
 }
 
@@ -874,7 +891,7 @@ p {
 .notice code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 12.5px;
-  background: rgba(255, 255, 255, 0.75);
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
   border-radius: 5px;
   padding: 1px 6px;

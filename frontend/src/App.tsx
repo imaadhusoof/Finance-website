@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchUniverse, type TickerInfo } from './api'
+import Constellation from './components/Constellation'
 import BuildPortfolio from './views/BuildPortfolio'
 import Dashboard from './views/Dashboard'
 import TickerDetail from './views/TickerDetail'
@@ -39,6 +40,7 @@ export default function App() {
 
   return (
     <div className="app">
+      <Constellation />
       <header className="header">
         <div className="shell header-inner">
           <div className="brand">
