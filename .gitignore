@@ -24,3 +24,6 @@ frontend/dist/
 .DS_Store
 .idea/
 .vscode/
+
+# Local editor / AI-tool config
+.claude/
