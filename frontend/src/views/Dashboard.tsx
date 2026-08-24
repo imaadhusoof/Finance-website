@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchQuotes, formatDate, type Quote, type TickerInfo } from '../api'
+import { fetchQuotes, formatDate, formatPrice, type Quote, type TickerInfo } from '../api'
 import SectorBars from '../components/SectorBars'
-import TickerCard from '../components/TickerCard'
 
 const QUOTE_REFRESH_MS = 60_000
 
@@ -25,7 +24,6 @@ export default function Dashboard({
   onSelect: (ticker: string) => void
 }) {
   const [quotes, setQuotes] = useState<Record<string, Quote>>({})
-  const [refreshing, setRefreshing] = useState(false)
 
   // Live prices land after first paint, then refresh on the server's quote TTL.
   useEffect(() => {
@@ -34,14 +32,11 @@ export default function Dashboard({
     let cancelled = false
 
     const load = async () => {
-      setRefreshing(true)
       try {
         const data = await fetchQuotes(symbols)
         if (!cancelled) setQuotes(data)
       } catch {
         /* keep the last good quotes rather than blanking the UI */
-      } finally {
-        if (!cancelled) setRefreshing(false)
       }
     }
 
@@ -68,7 +63,6 @@ export default function Dashboard({
     )
   }
 
-  const unclassified = universe.filter((t) => !t.sector).length
   const latestDate = universe
     .map((t) => t.last_close_date)
     .filter(Boolean)
@@ -76,78 +70,93 @@ export default function Dashboard({
     .pop()
   const liveCount = Object.keys(quotes).length
 
+  // Group by asset type so the list reads as a considered catalogue, not a
+  // flat grid of clones — funds, then individual equities.
+  const order = (t: TickerInfo) => (t.quote_type === 'ETF' ? 0 : 1)
+  const rows = [...universe].sort(
+    (a, b) => order(a) - order(b) || a.ticker.localeCompare(b.ticker),
+  )
+
   return (
     <div className="anim-in">
       <div className="page-head">
-        <h1 className="page-title">Your universe</h1>
-        <p className="page-sub">
-          Cached price history and classification data for every asset available to
-          the portfolio builder. Select any asset to see its full history.
+        <p className="section-eyebrow">The universe</p>
+        <h1 className="page-title">Every asset the optimizer can choose from</h1>
+        <p className="hero-meta" style={{ marginTop: 16 }}>
+          <strong>{universe.length}</strong> assets · <strong>{sectors.length}</strong>{' '}
+          sectors ·{' '}
+          {liveCount ? (
+            <>
+              <strong>{liveCount}</strong> live <span className="live-dot inline" />
+            </>
+          ) : (
+            'fetching live prices…'
+          )}{' '}
+          · data through {latestDate ? formatDate(latestDate) : '—'}
         </p>
       </div>
 
-      <div className="stat-row">
-        <div className="stat anim-up">
-          <div className="stat-label">Assets tracked</div>
-          <div className="stat-value">{universe.length}</div>
+      {/* Editorial asset table — hairline rows, not a grid of boxes. */}
+      <div className="asset-table" role="table" aria-label="Asset universe">
+        <div className="asset-row asset-head" role="row">
+          <span role="columnheader">Asset</span>
+          <span role="columnheader">Class</span>
+          <span role="columnheader" style={{ textAlign: 'right' }}>
+            Price
+          </span>
         </div>
-        <div className="stat anim-up" style={{ animationDelay: '50ms' }}>
-          <div className="stat-label">Sectors covered</div>
-          <div className="stat-value">{sectors.length}</div>
-        </div>
-        <div className="stat anim-up" style={{ animationDelay: '100ms' }}>
-          <div className="stat-label">Live prices</div>
-          <div className="stat-value">{liveCount || '—'}</div>
-          <div className="stat-hint">
-            {liveCount ? 'refreshes every 60s' : 'fetching…'}
-          </div>
-        </div>
-        <div className="stat anim-up" style={{ animationDelay: '150ms' }}>
-          <div className="stat-label">Data through</div>
-          <div className="stat-value" style={{ fontSize: 19 }}>
-            {latestDate ? formatDate(latestDate) : '—'}
-          </div>
-        </div>
-      </div>
-
-      <div className={refreshing && !liveCount ? 'refreshing' : undefined}>
-        <div className="ticker-grid">
-          {universe.map((info, i) => (
-            <TickerCard
+        {rows.map((info, i) => {
+          const quote = quotes[info.ticker]
+          const live = quote !== undefined
+          const price = live ? quote.price : info.last_close
+          const currency = quote?.currency ?? info.currency
+          const cls =
+            info.quote_type === 'ETF' ? 'ETF' : info.sector ?? info.quote_type ?? '—'
+          return (
+            <button
               key={info.ticker}
-              info={info}
-              quote={quotes[info.ticker]}
-              index={i}
-              onSelect={onSelect}
-            />
-          ))}
-        </div>
+              type="button"
+              className="asset-row anim-up"
+              style={{ animationDelay: `${Math.min(i, 16) * 22}ms` }}
+              onClick={() => onSelect(info.ticker)}
+              role="row"
+            >
+              <span className="asset-name" role="cell">
+                <span className="asset-symbol">{info.ticker}</span>
+                <span className="asset-full">{info.name ?? '—'}</span>
+              </span>
+              <span className="asset-class" role="cell">
+                <span className={`chip${info.quote_type === 'ETF' ? ' chip-accent' : ''}`}>
+                  {cls}
+                </span>
+              </span>
+              <span className={`asset-price${live ? ' live' : ''}`} role="cell">
+                {formatPrice(price, currency)}
+                {live && <span className="live-dot" />}
+              </span>
+            </button>
+          )
+        })}
       </div>
 
-      <div
-        className="section-gap"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-          gap: 16,
-        }}
-      >
-        <div className="card card-pad anim-up">
-          <div className="card-head">
-            <h2 className="card-title">By sector</h2>
-            <span className="card-note">{unclassified} unclassified</span>
+      {/* One integrated composition section, not two separate boxes. */}
+      <section className="section">
+        <p className="section-eyebrow">Composition</p>
+        <div className="composition">
+          <div>
+            <h3 className="step-title" style={{ marginBottom: 16 }}>
+              By sector
+            </h3>
+            <SectorBars items={sectors} />
           </div>
-          <SectorBars items={sectors} />
-        </div>
-
-        <div className="card card-pad anim-up" style={{ animationDelay: '60ms' }}>
-          <div className="card-head">
-            <h2 className="card-title">By asset type</h2>
-            <span className="card-note">holdings</span>
+          <div>
+            <h3 className="step-title" style={{ marginBottom: 16 }}>
+              By asset type
+            </h3>
+            <SectorBars items={assetTypes} />
           </div>
-          <SectorBars items={assetTypes} />
         </div>
-      </div>
+      </section>
     </div>
   )
 }

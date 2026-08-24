@@ -3,15 +3,23 @@ import { fetchUniverse, type TickerInfo } from './api'
 import Constellation from './components/Constellation'
 import BuildPortfolio from './views/BuildPortfolio'
 import Dashboard from './views/Dashboard'
+import Home from './views/Home'
 import TickerDetail from './views/TickerDetail'
 
 type View =
+  | { name: 'home' }
   | { name: 'universe' }
   | { name: 'detail'; ticker: string }
   | { name: 'build' }
 
+const NAV: { key: 'home' | 'universe' | 'build'; label: string }[] = [
+  { key: 'home', label: 'Overview' },
+  { key: 'universe', label: 'Universe' },
+  { key: 'build', label: 'Build' },
+]
+
 export default function App() {
-  const [view, setView] = useState<View>({ name: 'universe' })
+  const [view, setView] = useState<View>({ name: 'home' })
   const [universe, setUniverse] = useState<TickerInfo[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -34,6 +42,10 @@ export default function App() {
       ? universe?.find((t) => t.ticker === view.ticker)
       : undefined
 
+  // Which top-level nav item is highlighted (detail belongs to Universe).
+  const activeNav =
+    view.name === 'detail' ? 'universe' : view.name
+
   // Re-keying the view container replays its entrance animation on navigation.
   const viewKey =
     view.name === 'detail' ? `detail-${view.ticker}` : view.name
@@ -43,27 +55,27 @@ export default function App() {
       <Constellation />
       <header className="header">
         <div className="shell header-inner">
-          <div className="brand">
+          <button
+            type="button"
+            className="brand"
+            onClick={() => setView({ name: 'home' })}
+          >
             <span className="brand-mark" aria-hidden="true">
               ◆
             </span>
             Portfolio Builder
-          </div>
+          </button>
           <nav className="nav">
-            <button
-              type="button"
-              className={`nav-btn${view.name !== 'build' ? ' active' : ''}`}
-              onClick={() => setView({ name: 'universe' })}
-            >
-              Universe
-            </button>
-            <button
-              type="button"
-              className={`nav-btn${view.name === 'build' ? ' active' : ''}`}
-              onClick={() => setView({ name: 'build' })}
-            >
-              Build portfolio
-            </button>
+            {NAV.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`nav-btn${activeNav === item.key ? ' active' : ''}`}
+                onClick={() => setView({ name: item.key } as View)}
+              >
+                {item.label}
+              </button>
+            ))}
           </nav>
         </div>
       </header>
@@ -76,6 +88,14 @@ export default function App() {
               <span>{error}</span>
               <span>Make sure the backend is running on port 8000.</span>
             </div>
+          )}
+
+          {!error && view.name === 'home' && (
+            <Home
+              universe={universe}
+              onBuild={() => setView({ name: 'build' })}
+              onExplore={() => setView({ name: 'universe' })}
+            />
           )}
 
           {!error && view.name === 'universe' && (
@@ -96,6 +116,15 @@ export default function App() {
           {!error && view.name === 'build' && <BuildPortfolio universe={universe} />}
         </div>
       </main>
+
+      <footer className="footer">
+        <div className="shell footer-inner">
+          <span>
+            Built by Imaad Husoof · FastAPI · React · mean-variance optimization
+          </span>
+          <span className="footer-muted">Delayed data · not investment advice</span>
+        </div>
+      </footer>
     </div>
   )
 }

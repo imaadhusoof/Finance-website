@@ -37,12 +37,25 @@ export interface Holding {
   amount: number | null
   name: string | null
   sector: string | null
+  expected_return: number | null
+  volatility: number | null
+}
+
+export interface Projection {
+  years: number[]
+  p10: number[]
+  p25: number[]
+  p50: number[]
+  p75: number[]
+  p90: number[]
 }
 
 export interface Recommendation {
   holdings: Holding[]
   metrics: Record<string, number>
+  projection: Projection | null
   notes: string | null
+  skipped: string[]
 }
 
 export type RiskTolerance = 'conservative' | 'balanced' | 'aggressive'
@@ -122,6 +135,13 @@ export function formatPrice(value: number | null, currency?: string | null): str
     maximumFractionDigits: 2,
   }).format(value)
   return currency === 'USD' || !currency ? `$${formatted}` : `${formatted} ${currency}`
+}
+
+/** Whole-dollar USD, no cents — for portfolio totals and projected values,
+ *  where cents are just noise. */
+export function formatUSD0(value: number | null): string {
+  if (value === null || Number.isNaN(value)) return '—'
+  return `$${new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)}`
 }
 
 export function formatDate(iso: string): string {
