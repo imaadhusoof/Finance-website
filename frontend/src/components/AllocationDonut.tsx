@@ -19,9 +19,9 @@ const CENTER = SIZE / 2
  */
 function shade(i: number, n: number): string {
   const t = n <= 1 ? 0 : i / (n - 1)
-  // Interpolate lightness of the accent hue (~213°, 66% sat).
-  const light = 78 - t * 40 // 78% → 38%
-  return `hsl(213, 62%, ${light}%)`
+  // Interpolate lightness along the accent hue (~219°); largest weights darkest.
+  const light = 74 - t * 38 // 74% → 36%
+  return `hsl(219, 60%, ${light}%)`
 }
 
 export default function AllocationDonut({ holdings, total }: Props) {

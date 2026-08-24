@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
+import iuLogo from './assets/iu-logo.png'
 import { fetchUniverse, type TickerInfo } from './api'
 import Constellation from './components/Constellation'
 import BuildPortfolio from './views/BuildPortfolio'
 import Dashboard from './views/Dashboard'
 import Home from './views/Home'
+import Method from './views/Method'
 import TickerDetail from './views/TickerDetail'
 
 type View =
   | { name: 'home' }
+  | { name: 'method' }
   | { name: 'universe' }
   | { name: 'detail'; ticker: string }
   | { name: 'build' }
 
-const NAV: { key: 'home' | 'universe' | 'build'; label: string }[] = [
+const NAV: { key: 'home' | 'method' | 'universe' | 'build'; label: string }[] = [
   { key: 'home', label: 'Overview' },
+  { key: 'method', label: 'How it works' },
   { key: 'universe', label: 'Universe' },
   { key: 'build', label: 'Build' },
 ]
@@ -42,13 +46,9 @@ export default function App() {
       ? universe?.find((t) => t.ticker === view.ticker)
       : undefined
 
-  // Which top-level nav item is highlighted (detail belongs to Universe).
-  const activeNav =
-    view.name === 'detail' ? 'universe' : view.name
-
-  // Re-keying the view container replays its entrance animation on navigation.
-  const viewKey =
-    view.name === 'detail' ? `detail-${view.ticker}` : view.name
+  // Detail belongs under Universe for nav highlighting.
+  const activeNav = view.name === 'detail' ? 'universe' : view.name
+  const viewKey = view.name === 'detail' ? `detail-${view.ticker}` : view.name
 
   return (
     <div className="app">
@@ -59,18 +59,20 @@ export default function App() {
             type="button"
             className="brand"
             onClick={() => setView({ name: 'home' })}
+            aria-label="Imaadh Usoof — Portfolio Builder home"
           >
-            <span className="brand-mark" aria-hidden="true">
-              ◆
+            <img className="brand-logo" src={iuLogo} alt="" aria-hidden="true" />
+            <span className="brand-text">
+              <span className="brand-name">Portfolio Builder</span>
+              <span className="brand-by">Imaadh Usoof</span>
             </span>
-            Portfolio Builder
           </button>
           <nav className="nav">
             {NAV.map((item) => (
               <button
                 key={item.key}
                 type="button"
-                className={`nav-btn${activeNav === item.key ? ' active' : ''}`}
+                className={`nav-link${activeNav === item.key ? ' active' : ''}`}
                 onClick={() => setView({ name: item.key } as View)}
               >
                 {item.label}
@@ -95,7 +97,12 @@ export default function App() {
               universe={universe}
               onBuild={() => setView({ name: 'build' })}
               onExplore={() => setView({ name: 'universe' })}
+              onMethod={() => setView({ name: 'method' })}
             />
+          )}
+
+          {!error && view.name === 'method' && (
+            <Method onBuild={() => setView({ name: 'build' })} />
           )}
 
           {!error && view.name === 'universe' && (
@@ -120,7 +127,7 @@ export default function App() {
       <footer className="footer">
         <div className="shell footer-inner">
           <span>
-            Built by Imaad Husoof · FastAPI · React · mean-variance optimization
+            Built by Imaadh Usoof · FastAPI · React · mean-variance optimization
           </span>
           <span className="footer-muted">Delayed data · not investment advice</span>
         </div>

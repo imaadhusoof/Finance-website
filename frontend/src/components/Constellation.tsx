@@ -22,10 +22,10 @@ export default function Constellation() {
 
     const MAX_DIST = 170
     const MOUSE_RADIUS = 220
-    const MOUSE_PUSH = 1.3
+    const MOUSE_PUSH = 0.9
     const CLICK_RADIUS = 260
-    const CLICK_FORCE = 6
-    const BASE_SPEED = 0.35
+    const CLICK_FORCE = 4
+    const BASE_SPEED = 0.1
 
     interface Node {
       x: number
