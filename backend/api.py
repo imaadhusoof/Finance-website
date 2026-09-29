@@ -1,9 +1,9 @@
-"""HTTP API that serves cached raw data to the frontend.
+"""HTTP API that serves cached market data to the frontend.
 
-Strictly a data-serving layer: every endpoint returns raw prices or
-classification metadata straight out of the cache. Nothing here derives a
-figure from a price — no returns, volatility, correlation, or allocations.
-Those belong in the layer you own (see ``recommendation.py`` for the seam).
+Every endpoint returns raw prices or metadata straight out of the cache; the
+portfolio math lives in ``recommendation.py``. Requests are limited to the
+curated universe so a caller can't make the server fetch (and permanently
+cache) arbitrary symbols from the upstream data source.
 """
 from __future__ import annotations
 
@@ -25,10 +25,16 @@ router = APIRouter(prefix="/api", tags=["data"])
 MAX_WORKERS = 8
 
 
+#: The only tickers the API will serve or fetch.
+UNIVERSE = frozenset(STARTER_TICKERS)
+
+
 def _parse_tickers(raw: Optional[str]) -> list[str]:
+    """Parse a comma-separated ticker list, keeping only universe members (deduped, in order)."""
     if not raw:
         return []
-    return [t.strip().upper() for t in raw.split(",") if t.strip()]
+    requested = (t.strip().upper() for t in raw.split(","))
+    return list(dict.fromkeys(t for t in requested if t in UNIVERSE))
 
 
 @router.get("/universe")
@@ -97,11 +103,13 @@ def get_quotes(
 
 
 @router.get("/prices/{ticker}")
-def get_prices(ticker: str, refresh: bool = False) -> dict:
-    """Raw adjusted-close history for one ticker."""
+def get_prices(ticker: str) -> dict:
+    """Raw adjusted-close history for one ticker in the universe."""
     symbol = ticker.strip().upper()
+    if symbol not in UNIVERSE:
+        raise HTTPException(status_code=404, detail=f"{symbol} is not in the asset universe.")
     try:
-        hist = cache.load_history(symbol, force_refresh=refresh)
+        hist = cache.load_history(symbol)
     except DataFetchError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

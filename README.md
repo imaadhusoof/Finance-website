@@ -1,181 +1,111 @@
-# Options Pricer — Portfolio Builder
+# Portfolio Builder
 
-A portfolio recommendation web app: FastAPI data layer + React frontend.
+A web app that builds a diversified investment portfolio for you. You choose an amount, a risk appetite and a time horizon. It reads five years of daily prices, solves for the mix of assets that earns the most return for the risk you're willing to take, and simulates where that portfolio could end up.
 
-**Neither layer does any financial math.** No returns, volatility, correlation,
-covariance, optimization, filtering, or Monte Carlo. The backend gets clean,
-cached, raw data in; the frontend renders it. The recommendation algorithm is
-yours — it plugs in at one clearly marked seam (see
-[Where your algorithm goes](#where-your-algorithm-goes)).
+It's live at **[finance.imaadhusoof.com](https://finance.imaadhusoof.com)**. The backend is FastAPI with NumPy and SciPy, and the frontend is React and TypeScript. It runs on a single AWS Lightsail server.
 
-## Running it
+> Not investment advice. It's a portfolio-theory project built on historical data, and the projections are a range of possibilities rather than a promise.
 
-Two processes. Backend first:
+## What it does
+
+- **Overview and How it works:** a landing page, plus a page that walks through the method (the maths below) in plain language.
+- **Universe:** the 18 assets the optimiser can choose from, with live prices and sector and asset-type breakdowns. There are US and international equity ETFs, large-cap stocks, bond ETFs and gold.
+- **Asset detail:** a 5-year adjusted-close chart for each asset, with a crosshair, tooltip, range selector and a table view.
+- **Build:** set an amount, a risk tolerance (conservative, balanced or aggressive), a horizon of 1 to 50 years, and any sectors to exclude. You get back an allocation donut, each holding's weight and dollar amount, the portfolio's expected return, volatility and Sharpe ratio, and a Monte Carlo fan chart of its projected value.
+
+## How the recommendation engine works
+
+All of the maths is in [`backend/recommendation.py`](backend/recommendation.py).
+
+1. **Estimate returns and risk.** Using about 1,250 trading days of adjusted closes, it annualises each asset's mean daily return and the covariance matrix of returns across assets. Assets with less than a year of history are left out.
+2. **Shrink the estimates.** Plain mean-variance optimisation trusts its inputs too much: it piles into whichever asset happened to have the best sample return. To guard against that, expected returns are pulled 40% toward the average across all assets. The covariance matrix is also pulled 20% toward its diagonal, which damps correlations that are mostly noise.
+3. **Optimise.** It solves a long-only Markowitz problem, maximising `wᵀμ − ½·λ·wᵀΣw`, using SciPy's SLSQP. The weights must be positive, sum to 1, and stay at or below 25% for any single asset, so no one name dominates.
+   - **Risk aversion:** the risk tolerance sets λ, the risk-aversion factor: 28 for conservative, 9 for balanced and 3 for aggressive. Conservative portfolios land lower on the efficient frontier and lean on bonds, while aggressive ones reach for return.
+   - **Clean-up:** positions under 0.5% are dropped.
+4. **Project the outcome.** It runs 6,000 Monte Carlo paths of geometric Brownian motion in monthly steps over the horizon, and returns the 10th, 25th, 50th, 75th and 90th percentile values. The random seed is fixed, so the same inputs always give the same answer.
+5. **Report.** It reports the expected return, volatility, and Sharpe ratio (against a 4.2% risk-free rate), plus the median and 10th–90th percentile end values.
+
+## How it's built
+
+**Data layer (`backend/data/`).** Prices come from Yahoo Finance through `yfinance`. The fetching sits behind a `PriceDataSource` interface, so a paid real-time feed could be swapped in without touching anything else.
+
+Everything is cached on disk:
+- **Price history:** 5 years of daily history per ticker, as one Parquet file each. It's refreshed by a nightly job after the US market close.
+- **Live quotes:** kept for 60 seconds.
+- **Metadata:** sector and industry, kept for 30 days.
+
+If a refetch fails, the last cached copy is served instead of an error. The API only serves and fetches tickers in the curated universe, so a request can't make the server download arbitrary symbols.
+
+**API (`backend/api.py`, `backend/recommendation.py`):**
+- `GET /api/universe`: the asset list with metadata and the last close. It reads the cache only, so it's instant.
+- `GET /api/quotes`: latest quotes, fetched concurrently through the short-lived quote cache.
+- `GET /api/prices/{ticker}`: 5-year adjusted-close history.
+- `POST /api/recommend`: the portfolio engine.
+- `GET /health`: health check.
+
+**Frontend (`frontend/`).** It's Vite, React and TypeScript with no UI framework. The charts (price history, allocation donut and Monte Carlo fan) are hand-written SVG rather than a chart library. It uses a dark theme with an animated constellation background.
+
+**Deployment (`deploy/`).** It's hosted on one AWS Lightsail Ubuntu instance:
+- **nginx:** serves the built frontend, proxies `/api` to uvicorn, and rate-limits the API per IP.
+- **Backend:** uvicorn runs as a systemd service.
+- **HTTPS:** handled by certbot.
+- **Nightly refresh:** a systemd timer refreshes the price cache at 22:30 UTC.
+
+[`deploy/RUNBOOK.md`](deploy/RUNBOOK.md) goes from a fresh server to a live HTTPS site step by step. After that, `deploy/deploy.sh` redeploys: it pulls, installs dependencies, builds the frontend, restarts the backend, installs the timer and nginx config, and runs a health check.
+
+## Running it locally (Windows)
+
+I use a plain `venv` here rather than `uv`. A `uv`-managed Python lives under `AppData`, and its Windows launcher was unreliable from VS Code terminals. On the Linux server, `uv` works fine.
 
 ```bash
-.venv\Scripts\activate
+python -m venv .venv
 ```
 ```bash
-uv run uvicorn backend.main:app --reload
+.venv\Scripts\python.exe -m pip install -r requirements.txt
+```
+```bash
+npm --prefix frontend install
 ```
 
-Then the frontend (separate terminal):
+Fill the price cache the first time. This takes about a minute:
 
+```bash
+.venv\Scripts\python.exe -m backend.data.populate_cache
+```
+
+Then run the backend and frontend in two terminals from the project root:
+
+```bash
+.venv\Scripts\python.exe -m uvicorn backend.main:app --reload
+```
 ```bash
 npm --prefix frontend run dev
 ```
 
-Open `http://localhost:5173`. Vite proxies `/api` to the backend, so there is no
-CORS setup in dev.
+Open `http://localhost:5173`. Vite proxies `/api` to the backend, so no CORS setup is needed.
 
-## Deployment
+`backend/main.py` can't be run directly (for example with VS Code's ▶ button). It uses package-relative imports and has to be started by uvicorn.
 
-Production target is `finance.imaadhusoof.com` on a single AWS Lightsail
-instance: nginx serves the built frontend and proxies `/api` to uvicorn, with
-the parquet cache on a persistent path outside the app directory.
+## Tests
 
-Everything needed is in [`deploy/`](deploy/) — start with
-[`deploy/RUNBOOK.md`](deploy/RUNBOOK.md), which goes from a fresh Ubuntu box to a
-live HTTPS site step by step.
-
-| File | Purpose |
-|------|---------|
-| `deploy/RUNBOOK.md` | Step-by-step server setup |
-| `deploy/nginx.conf` | Static frontend + `/api` reverse proxy |
-| `deploy/options-pricer.service` | systemd unit for uvicorn |
-| `deploy/cache-refresh.{service,timer}` | Daily cache refresh at 22:30 UTC |
-| `deploy/deploy.sh` | Pull, build, restart, health-check |
-
-## Where your algorithm goes
-
-`backend/recommendation.py` — the single seam. It currently returns
-501 Not Implemented, and the UI shows a "plug your algorithm in here" panel.
-Replace the body of `recommend()` and the frontend renders your allocation
-automatically; the request/response contract is already defined there.
-
-Your raw inputs are one import away:
-
-```python
-from backend.data import cache
-
-prices, skipped = cache.load_price_matrix(tickers)   # wide DataFrame of adj close
-meta = cache.load_metadata_table(tickers)            # sector / industry
-```
-
-## Frontend
-
-`frontend/` — Vite + React + TypeScript, no UI framework dependency.
-
-| View | What it does |
-|------|--------------|
-| Universe | Every cached asset with live prices (refreshed every 60s), sector and asset-type breakdowns |
-| Asset detail | 5-year adjusted-close chart with crosshair, tooltip, range selector, and a data-table view |
-| Build portfolio | Constraints form (amount, risk, horizon, sector exclusions) that POSTs to the recommendation seam |
-
-Design: light theme, white surfaces, a single blue accent (`#2a78d6`, validated
-for contrast against white). Charts are hand-rolled SVG — no chart library.
-
-**Deliberately absent:** no price change %, no day gain/loss, no performance
-comparison. Every one of those is a *return* calculation, which belongs to your
-math layer, not this one. They're easy to add once your algorithm exists.
-
-## API
-
-| Endpoint | Purpose |
-|----------|---------|
-| `GET /health` | Liveness + resolved cache dir |
-| `GET /api/universe` | Tickers + metadata + last cached close (local cache only, instant) |
-| `GET /api/quotes` | Latest quotes, fetched concurrently, short-TTL cached |
-| `GET /api/prices/{ticker}` | Raw adjusted-close history |
-| `POST /api/recommend` | **Your algorithm.** 501 until implemented |
-
-## Layout
-
-```
-backend/
-  main.py                     FastAPI app (GET /health)
-  config.py                   Cache paths + freshness windows (env-overridable)
-  data/
-    sources/
-      base.py                 PriceDataSource interface (swap providers here)
-      yfinance_source.py      yfinance implementation
-    fetch.py                  Network fetch layer (source-backed)
-    cache.py                  Tiered on-disk cache (prices / quotes / metadata)
-    populate_cache.py         CLI to warm the cache for a starter ticker list
-data_cache/                   Generated cache (gitignored)
-  prices/<TICKER>.parquet     Date-indexed adjusted close, one file per ticker
-  quotes/<TICKER>.json        Latest quote (short TTL)
-  metadata.json               Shared ticker -> {sector, industry, name, ...}
-  manifest.json               Per-ticker fetch timestamps
-```
-
-## Setup (uv)
+The tests run the engine on synthetic price data, so they don't need the network or a filled cache. They check that the output is a valid portfolio (weights sum to 1 and respect the 25% cap), that higher risk tolerance really takes more risk, that sector exclusions work, and that the Monte Carlo bands are ordered. They also check that the API refuses tickers outside the universe.
 
 ```bash
-uv venv
-uv pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
 ```
-
-## Run the API
-
 ```bash
-uv run uvicorn backend.main:app --reload
+.venv\Scripts\python.exe -m pytest
 ```
 
-Then check `http://127.0.0.1:8000/health`.
+## Configuration
 
-## Warm the cache
+Everything has a sensible default and can be overridden with environment variables:
+- `OPTIONS_PRICER_CACHE_DIR`: where the cache lives (a persistent path in production).
+- `OPTIONS_PRICER_HISTORY_PERIOD`: how much history to fetch (`5y`).
+- `OPTIONS_PRICER_HISTORY_TTL_HOURS`: how old cached history can get before a request refetches it (`30`). The nightly job normally refreshes it well before then.
+- `OPTIONS_PRICER_QUOTE_TTL_SECONDS`: how long a live quote is reused (`60`).
+- `OPTIONS_PRICER_METADATA_TTL_DAYS`: how long sector and industry data is kept (`30`).
 
-```bash
-uv run python -m backend.data.populate_cache
-```
+The `OPTIONS_PRICER_` prefix comes from the project's original name.
 
-Options: pass tickers to override the starter set, `--force` to ignore freshness,
-`--no-quotes` to skip live quotes, `-v` for debug logs.
-
-## Loading data (for your stats code)
-
-```python
-from backend.data import cache
-
-# Wide DataFrame: columns = tickers, index = date, values = adjusted close.
-prices, skipped = cache.load_price_matrix(["AAPL", "VTI", "BND", "TLT"])
-
-# Single ticker history (date-indexed, 'adj_close' column).
-hist = cache.load_history("AAPL")
-
-# Sector/industry metadata as a ticker-indexed DataFrame.
-meta = cache.load_metadata_table(["AAPL", "VTI", "BND"])
-
-# Latest (short-TTL) quote.
-quote = cache.load_latest_quote("AAPL")
-```
-
-## Caching behaviour
-
-| Data | Cache | Refresh trigger |
-|------|-------|-----------------|
-| 5y daily history | `prices/<T>.parquet` | Missing or older than `HISTORY_TTL_HOURS` (default 12h) |
-| Latest quote | `quotes/<T>.json` | Missing or older than `QUOTE_TTL_SECONDS` (default 60s) |
-| Metadata | `metadata.json` | Missing or older than `METADATA_TTL_DAYS` (default 30d) |
-
-If a refetch fails but a cached copy exists, the stale copy is served instead of
-erroring. Bad/unknown tickers are logged and skipped, never crash a batch.
-
-## Config (environment variables)
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `OPTIONS_PRICER_CACHE_DIR` | `./data_cache` | Cache location (point at a persistent volume in prod) |
-| `OPTIONS_PRICER_HISTORY_PERIOD` | `5y` | History window |
-| `OPTIONS_PRICER_HISTORY_TTL_HOURS` | `12` | History freshness window |
-| `OPTIONS_PRICER_QUOTE_TTL_SECONDS` | `60` | Quote freshness window |
-| `OPTIONS_PRICER_METADATA_TTL_DAYS` | `30` | Metadata freshness window |
-| `OPTIONS_PRICER_POPULATE_SLEEP_SECONDS` | `1.0` | Delay between tickers when bulk-populating |
-
-## Data source note
-
-`yfinance` scrapes Yahoo Finance: quotes are typically ~15 minutes delayed and it
-is not an official API. It's fine for development and light traffic. To use a
-paid real-time feed later, implement `PriceDataSource` in `data/sources/` and
-return it from `default_source()` — nothing else changes.
+Yahoo Finance quotes are usually delayed by about 15 minutes, and `yfinance` isn't an official API. That's fine for a project like this. For real-time data, you'd implement `PriceDataSource` for a paid feed.

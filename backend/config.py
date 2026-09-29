@@ -28,11 +28,14 @@ METADATA_PATH: Path = CACHE_DIR / "metadata.json"   # shared ticker -> metadata 
 MANIFEST_PATH: Path = CACHE_DIR / "manifest.json"   # per-ticker fetch timestamps
 
 # --- Fetch / freshness windows --------------------------------------------
-# Historical daily prices only change once per trading day, so a coarse TTL is
-# plenty. Latest quotes get a short TTL so pages feel live without hammering
-# the upstream source on every single request.
+# Historical daily prices only change once per trading day, and in production the
+# nightly cache-refresh timer re-pulls them. The TTL is longer than a day so that
+# the timer does the refreshing and a visitor's request never has to wait on the
+# upstream source; request-time refetches are only a fallback if the timer fails.
+# Latest quotes get a short TTL so pages feel live without hammering the upstream
+# source on every single request.
 HISTORY_PERIOD: str = os.getenv("OPTIONS_PRICER_HISTORY_PERIOD", "5y")
-HISTORY_TTL_HOURS: float = float(os.getenv("OPTIONS_PRICER_HISTORY_TTL_HOURS", "12"))
+HISTORY_TTL_HOURS: float = float(os.getenv("OPTIONS_PRICER_HISTORY_TTL_HOURS", "30"))
 QUOTE_TTL_SECONDS: float = float(os.getenv("OPTIONS_PRICER_QUOTE_TTL_SECONDS", "60"))
 METADATA_TTL_DAYS: float = float(os.getenv("OPTIONS_PRICER_METADATA_TTL_DAYS", "30"))
 

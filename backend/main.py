@@ -1,7 +1,7 @@
 """FastAPI application.
 
-Wires up the data-serving API and the (unimplemented) recommendation seam.
-No financial calculations live in this package by design.
+Wires up the market-data API (``api``) and the portfolio recommendation
+engine (``recommendation``).
 """
 from __future__ import annotations
 

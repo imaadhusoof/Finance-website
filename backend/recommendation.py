@@ -30,7 +30,7 @@ from typing import Literal, Optional
 import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from scipy.optimize import minimize
 
 from .data import cache
@@ -82,6 +82,18 @@ class PortfolioRequest(BaseModel):
         None, description="Universe to consider. Defaults to the cached starter set."
     )
     excluded_sectors: list[str] = Field(default_factory=list)
+
+    @field_validator("tickers")
+    @classmethod
+    def _only_universe_tickers(cls, value: Optional[list[str]]) -> Optional[list[str]]:
+        """Reject symbols outside the curated universe so requests can't trigger upstream fetches."""
+        if value is None:
+            return None
+        tickers = list(dict.fromkeys(t.strip().upper() for t in value if t.strip()))
+        unknown = [t for t in tickers if t not in STARTER_TICKERS]
+        if unknown:
+            raise ValueError(f"Not in the asset universe: {', '.join(unknown)}")
+        return tickers
 
 
 class Holding(BaseModel):

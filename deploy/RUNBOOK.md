@@ -257,6 +257,10 @@ sudo certbot renew --dry-run
 
 ## Step 11 — Enable the daily cache refresh
 
+`deploy.sh` also installs and enables this timer on every deploy (along with
+`deploy/nginx-hardening.conf`, which adds an API rate limit and hides the nginx
+version), so it can't be left switched off. To do it by hand:
+
 ```bash
 sudo systemctl enable --now cache-refresh.timer
 systemctl list-timers cache-refresh --no-pager

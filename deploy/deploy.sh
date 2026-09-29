@@ -34,8 +34,23 @@ npm --prefix frontend run build
 step "Restarting backend"
 sudo systemctl restart options-pricer
 
+step "Installing nightly cache refresh"
+# Idempotent: re-copying unchanged units and re-enabling an enabled timer is a no-op.
+sudo install -m 644 deploy/cache-refresh.service deploy/cache-refresh.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now cache-refresh.timer
+systemctl list-timers cache-refresh --no-pager
+
+step "Installing nginx hardening"
+# conf.d, not the site file: certbot owns the site file's HTTPS config.
+sudo install -m 644 deploy/nginx-hardening.conf /etc/nginx/conf.d/options-pricer-hardening.conf
+
 step "Reloading nginx"
-sudo nginx -t
+if ! sudo nginx -t; then
+    # Don't leave a config behind that would stop nginx on its next restart
+    sudo rm -f /etc/nginx/conf.d/options-pricer-hardening.conf
+    fail "nginx config test failed; removed the hardening config, site left unchanged"
+fi
 sudo systemctl reload nginx
 
 step "Health check"

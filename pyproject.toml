@@ -1,7 +1,7 @@
 [project]
-name = "options-pricer-backend"
-version = "0.1.0"
-description = "Raw market-data layer (prices + sector metadata) for the portfolio recommender. No financial calculations."
+name = "portfolio-builder-backend"
+version = "0.2.0"
+description = "FastAPI backend for the Portfolio Builder: cached market data plus mean-variance portfolio optimisation and Monte Carlo projections."
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.110",
@@ -9,6 +9,7 @@ dependencies = [
     "yfinance>=0.2.40",
     "pandas>=2.0",
     "numpy>=1.24",
+    "scipy>=1.11",
     "pyarrow>=15.0",
 ]
 
@@ -16,3 +17,6 @@ dependencies = [
 # require a build backend / package layout.
 [tool.uv]
 package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
