@@ -19,6 +19,14 @@ cd "$APP_DIR" || fail "app directory $APP_DIR not found"
 step "Pulling latest code"
 git pull --ff-only
 
+# Bash keeps running the copy of this script it started with, so any changes the
+# pull just made to deploy.sh itself wouldn't apply until the next deploy.
+# Restart once on the freshly pulled version (the second pull is a no-op).
+if [ -z "${DEPLOY_REEXECED:-}" ]; then
+    export DEPLOY_REEXECED=1
+    exec "$APP_DIR/deploy/deploy.sh" "$@"
+fi
+
 step "Syncing Python dependencies"
 "$UV" pip install -r requirements.txt --python "$APP_DIR/.venv/bin/python"
 
